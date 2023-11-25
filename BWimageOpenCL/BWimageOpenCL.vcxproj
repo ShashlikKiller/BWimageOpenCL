@@ -71,8 +71,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\vipef\source\cv\opencv\build\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\vipef\source\cv\opencv\build\x64\vc16\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Программы\Учеба\Творческий проект\include;C:\Users\vipef\source\cv\opencv\build\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Программы\Учеба\Творческий проект\lib;C:\Users\vipef\source\cv\opencv\build\x64\vc16\lib;$(LibraryPath)</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -109,11 +109,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Программы\Учеба\Творческий проект\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opencv_world480d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opencv_world480d.lib;%(AdditionalDependencies);OpenCL.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Программы\Учеба\Творческий проект\include;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
