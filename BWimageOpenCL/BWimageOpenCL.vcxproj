@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Программы\Учеба\Творческий проект\include;C:\Users\vipef\source\cv\opencv\build\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Программы\Учеба\Творческий проект\include;C:\Users\vipef\source\cv\opencv\build\include;C:\Users\vipef\source\cv\opencv\build\x64\vc16\bin;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Программы\Учеба\Творческий проект\lib;C:\Users\vipef\source\cv\opencv\build\x64\vc16\lib;$(LibraryPath)</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
