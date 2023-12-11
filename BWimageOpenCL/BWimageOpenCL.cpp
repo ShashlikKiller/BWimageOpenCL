@@ -33,6 +33,7 @@
 #include <array>
 #include <sstream>
 #include <vector>
+#include <malloc.h>
 
 using namespace cv;
 using namespace Concurrency;
@@ -44,7 +45,9 @@ cv::Mat MakeGrayByPixel(cv::Mat image);
 cv::Mat MakeGrayIGuess(cv::Mat image);
 cv::Mat MakeGrayPtr(cv::Mat image);
 int** GetImgPixMatrix(cv::Mat image);
-
+cv::Mat GetImgFromPixMatrix(Vec3b** PixMatrix);
+Vec3b** GetImgPixChannelMatrix(cv::Mat image);
+//void PerformTestOnDevice(cl::Device device, cv::Mat image);
 
 int main(int argc, char* argv[])
 {
@@ -70,20 +73,42 @@ int main(int argc, char* argv[])
     //cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
     //cv::imshow("cv", image);
 
-    int** matrix = GetImgPixMatrix(image);
+    Vec3b** PixMatrix = GetImgPixChannelMatrix(image);
+    cv::Mat newImage = GetImgFromPixMatrix(PixMatrix);
 
-    //image2 = MakeGrayByPixel(image2);
-    //cv::imshow("cv1", image2);
-    //printf("First");
-    //image = MakeGrayPtr(image);
-    //image = MakeGrayIGuess(image);
-    //cv::imshow("cv2", image);
+    cv::imshow("cv4", newImage);
     printf("Second");
     image = MakeGrayPtrParallel_for(image);
     cv::imshow("cv3", image);
     // Сохранение черно-белого изображения
     //cv::imwrite("output_image.jpg", image);
     waitKey();
+
+    //Get all available platforms
+    vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+
+    for (unsigned short iPlatform = 0; iPlatform < platforms.size(); iPlatform++)
+    {
+        //Get all available devices on selected platform
+        std::vector<cl::Device> devices;
+        platforms[iPlatform].getDevices(CL_DEVICE_TYPE_ALL, &devices);
+        cout << iPlatform << endl; // закомментить
+
+        //Perform test on each device
+        for (unsigned int iDevice = 0; iDevice < devices.size(); iDevice++)
+        {
+            try
+            {
+                //PerformTestOnDevice(devices[iDevice], image);
+            }
+            catch (cl::Error error)
+            {
+                std::cout << error.what() << "(" << error.err() << ")" << std::endl;
+            }
+            //CheckResults();
+        }
+    }
 
     // освобождаем ресурсы
     image.cv::Mat::release();
@@ -146,6 +171,7 @@ void imgInfo(cv::Mat image)
     printf("[i] columns:  %d\n", columns);
 }
 
+[[Deprecated("This isn't working. Method from docs")]]
 cv::Mat MakeGrayIGuess(cv::Mat image)
 {
     cv::Mat _image;
@@ -175,18 +201,51 @@ cv::Mat MakeGrayByPixel(cv::Mat image)
     MatSize _imgsize = image.size;
     int _rows = _imgsize[0]; // Кол-во пикселей по вертикали
     int _columns = _imgsize[1]; // По вертикали
+    cv::Mat _imageResult(_rows, _columns, CV_8UC1);
     for (int x = 0; x < _rows; x++)
     {
         for (int y = 0; y < _columns; y++)
         {
             cv::Vec3b pix = image.at<cv::Vec3b>(x, y);
             float gray = GetGrayPix(pix[0], pix[1], pix[2]); //0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
-            image.at<cv::Vec3b>(x, y) = cv::Vec3b(gray, gray, gray);
+            _imageResult.at<uchar>(x, y) = uchar(gray);
         }
     }
-    return image;
+    return _imageResult;
 }
 
+cv::Mat GetImgFromPixMatrix(Vec3b** PixMatrix)
+{
+    int rows = _msize(PixMatrix)/sizeof(Vec3b*);
+    int cols = _msize(PixMatrix[0])/sizeof(Vec3b);
+    cv::Mat imageResult(rows, cols, CV_8UC3);
+    for (int x = 0; x < rows; x++)
+    {
+        for (int y = 0; y < cols; y++)
+        {
+            imageResult.at<cv::Vec3b>(x, y) = PixMatrix[x][y];
+        }
+    }
+    return imageResult;
+}
+
+Vec3b** GetImgPixChannelMatrix(cv::Mat image)
+{
+    Vec3b** _pixMat = new Vec3b* [image.rows];
+    for (int x = 0; x < image.rows; x++)
+    {
+        _pixMat[x] = new Vec3b[image.cols];
+        for (int y = 0; y < image.cols; y++)
+        {
+            _pixMat[x][y][0] = image.at<cv::Vec3b>(x, y)[0];
+            _pixMat[x][y][1] = image.at<cv::Vec3b>(x, y)[1];
+            _pixMat[x][y][2] = image.at<cv::Vec3b>(x, y)[2];
+        }
+    }    
+    return _pixMat;
+}
+
+[[Deprecated("Wrong method. Use GetImgPixChannelMatrix instead.")]]
 int** GetImgPixMatrix(cv::Mat image)
 {
     int** _pixMat = new int* [image.rows];
@@ -206,8 +265,8 @@ void PerformTestOnDevice(cl::Device device, cv::Mat image)
 {
     //preparing:
     const int IMAGE_SIZE = image.size[0]*image.size[1];
-    int** ResultImagePixelsMatrix; // ON DEVICE
-    int** ImagePixelsMatrix; // ON HOST
+    Vec3b** ResultImagePixelsMatrix; // ON DEVICE (it was int**)
+    Vec3b** ImagePixelsMatrix; // ON HOST (it was int**)
     cv::Mat _imgResult(image.rows, image.cols, CV_8UC1);
     const int RESULT_IMAGE_SIZE = _imgResult.size[0] * _imgResult.size[1];
     cout << endl << "-------------------------------------------------" << endl;
@@ -230,9 +289,9 @@ void PerformTestOnDevice(cl::Device device, cv::Mat image)
     fill_n(ResultImagePixelsMatrix, IMAGE_SIZE, 0);
 
     //Create memory buffers
-    cl::Buffer VhodnoyMassiv = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix);
-    cl::Buffer clmInputVector2 = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pInputVector2);
-    cl::Buffer clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pOutputVector);
+    cl::Buffer VhodnoyMassiv = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix); // ОТПРАВЛЯЕМ ЭТО В КЕРНЕЛ
+    //cl::Buffer clmInputVector2 = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pInputVector2);
+    cl::Buffer VihodnoyMassiv = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix); // ПОЛУЧАЕМ ЭТО ИЗ МАССИВА
 
     //Build OpenCL program and make the kernel
     
@@ -301,5 +360,5 @@ void PerformTestOnDevice(cl::Device device, cv::Mat image)
     }
     //PrintTimeStatistic();
     // Read buffer C into a local list
-    queue.enqueueReadBuffer(ImagePixels_device, CL_TRUE, 0, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix);
+    queue.enqueueReadBuffer(VihodnoyMassiv, CL_TRUE, 0, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix);
 }
