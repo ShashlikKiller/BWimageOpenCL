@@ -47,11 +47,12 @@ cv::Mat MakeGrayPtr(cv::Mat image);
 int** GetImgPixMatrix(cv::Mat image);
 cv::Mat GetImgFromPixMatrix(Vec3b** PixMatrix);
 Vec3b** GetImgPixChannelMatrix(cv::Mat image);
-//void PerformTestOnDevice(cl::Device device, cv::Mat image);
+int*** ConvertToInt3(cv::Vec3b** PixMatrix);
+void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix);
 
 int main(int argc, char* argv[])
 {
-    const char* filename_example = "C:\\Программы\\Картинки\\1.jpg";
+    const char* filename_example = "C:\\Users\\vipef\\Рабочий стол\\2.png";
     const char* filename = (argc == 2) ? argv[1] : filename_example;
     // Загрузка изображения
     cv::Mat imageOrigin = cv::imread(filename);
@@ -74,15 +75,30 @@ int main(int argc, char* argv[])
     //cv::imshow("cv", image);
 
     Vec3b** PixMatrix = GetImgPixChannelMatrix(image);
+    int*** PixMatrixInt = ConvertToInt3(PixMatrix);
+
+#pragma region test
+    //for (int i = 0; i < rows; i++)
+//{
+//    for (int j = 0; j < cols; j++)
+//    {
+//        for (int z = 0; z < 3; z++)
+//        {
+//            cout << (PixMatrixInt[i][j][z]) << " ";
+//        }
+//    }
+//}
+#pragma endregion
+
     cv::Mat newImage = GetImgFromPixMatrix(PixMatrix);
 
-    cv::imshow("cv4", newImage);
+    //cv::imshow("cv4", newImage);
     printf("Second");
     image = MakeGrayPtrParallel_for(image);
-    cv::imshow("cv3", image);
+    //cv::imshow("cv3", image);
     // Сохранение черно-белого изображения
     //cv::imwrite("output_image.jpg", image);
-    waitKey();
+    //waitKey();
 
     //Get all available platforms
     vector<cl::Platform> platforms;
@@ -100,7 +116,7 @@ int main(int argc, char* argv[])
         {
             try
             {
-                //PerformTestOnDevice(devices[iDevice], image);
+                PerformTestOnDeviceNew(devices[iDevice], PixMatrixInt);
             }
             catch (cl::Error error)
             {
@@ -245,6 +261,31 @@ Vec3b** GetImgPixChannelMatrix(cv::Mat image)
     return _pixMat;
 }
 
+int*** ConvertToInt3(cv::Vec3b** PixMatrix)
+{
+    int _rows = _msize(PixMatrix) / sizeof(Vec3b*);
+    int _cols = _msize(PixMatrix[0]) / sizeof(Vec3b);
+    int*** _resultMatrix;
+    _resultMatrix = new int** [_rows];
+
+    for (int x = 0; x < _rows; x++) 
+    {
+        _resultMatrix[x] = new int* [_cols];
+        for (int y = 0; y < _cols; y++) 
+        {
+            _resultMatrix[x][y] = new int[3];
+            cv::Vec3b _vec3bVal = PixMatrix[x][y];
+            int b = _vec3bVal[0];
+            int g = _vec3bVal[1];
+            int r = _vec3bVal[2];
+            _resultMatrix[x][y][0] = b;
+            _resultMatrix[x][y][1] = g;
+            _resultMatrix[x][y][2] = r;
+        }
+    }
+    return _resultMatrix;
+}
+
 [[Deprecated("Wrong method. Use GetImgPixChannelMatrix instead.")]]
 int** GetImgPixMatrix(cv::Mat image)
 {
@@ -260,17 +301,18 @@ int** GetImgPixMatrix(cv::Mat image)
     return _pixMat;
 }
 
-int** hostImage;
-void PerformTestOnDevice(cl::Device device, cv::Mat image)
+void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
 {
-    //preparing:
-    const int IMAGE_SIZE = image.size[0]*image.size[1];
-    Vec3b** ResultImagePixelsMatrix; // ON DEVICE (it was int**)
-    Vec3b** ImagePixelsMatrix; // ON HOST (it was int**)
-    cv::Mat _imgResult(image.rows, image.cols, CV_8UC1);
-    const int RESULT_IMAGE_SIZE = _imgResult.size[0] * _imgResult.size[1];
     cout << endl << "-------------------------------------------------" << endl;
     cout << "Device: " << device.getInfo<CL_DEVICE_NAME>() << endl << endl;
+
+    const int ROWS = _msize(PixMatrix) / sizeof(int**);
+    const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
+
+    const int IMAGE_SIZE = ROWS * COLS;
+    int** pOutputVector; // ON DEVICE (it was int**)
+    int*** pInputVector; // ON HOST (it was int**)
+    cv::Mat _imgResult(ROWS, COLS, CV_8UC1);
 
     //For the selected device create a context
     vector<cl::Device> contextDevices;
@@ -280,36 +322,40 @@ void PerformTestOnDevice(cl::Device device, cv::Mat image)
     // Создаем очередь для девайса
     cl::CommandQueue queue(context, device);
 
-    ////Clean output buffers
-    //fill_n(ImagePixelsMatrix, image.size, 0);
+    pInputVector = PixMatrix;
 
-    ////Create memory buffers
-    //cl::Buffer ImagePixels_host = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix);
-    //cl::Buffer ImagePixels_device = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix);
-    fill_n(ResultImagePixelsMatrix, IMAGE_SIZE, 0);
+    //Clean output buffers
+    pOutputVector = new int* [ROWS];
+    for (int i = 0; i < ROWS; i++)
+    {
+        pOutputVector[i] = new int[COLS];
+        for (int j = 0; j < COLS; j++)
+        {
+            pOutputVector[i][j] = 0;
+        }
+    }
+    //fill_n(pOutputVector, IMAGE_SIZE * sizeof(int), 0);
 
     //Create memory buffers
-    cl::Buffer VhodnoyMassiv = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix); // ОТПРАВЛЯЕМ ЭТО В КЕРНЕЛ
-    //cl::Buffer clmInputVector2 = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pInputVector2);
-    cl::Buffer VihodnoyMassiv = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix); // ПОЛУЧАЕМ ЭТО ИЗ МАССИВА
+    cl::Buffer clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pInputVector);
+    cl::Buffer clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pOutputVector);
 
-    //Build OpenCL program and make the kernel
-    
+    //Load OpenCL source code
     std::string kernelCode = "";
 
     std::ifstream fromFile("kernel.cl");
     // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
-    if (fromFile.is_open()) 
+    if (fromFile.is_open())
     {
         std::string line;
-        while (std::getline(fromFile, line)) 
+        while (std::getline(fromFile, line))
         {
             kernelCode += line + "\n";
         }
         fromFile.close();
         // используйте переменную kernel для дальнейшей обработки исходного кода OpenCL
     }
-    else 
+    else
     {
         // обработка ошибки открытия файла
     }
@@ -328,37 +374,98 @@ void PerformTestOnDevice(cl::Device device, cv::Mat image)
         throw err;
     }
     cout << "building completed." << endl;
-
     cl::Kernel kernel(program, "TestKernel");
 
     //Set arguments to kernel
     int iArg = 0;
-    kernel.setArg(iArg++, ImagePixelsMatrix);
-    kernel.setArg(iArg++, ResultImagePixelsMatrix);
-    //kernel.setArg(iArg++, clmOutputVector);
+    kernel.setArg(iArg++, clmInputVector);
+    kernel.setArg(iArg++, clmOutputVector);
     kernel.setArg(iArg++, IMAGE_SIZE);
-
     //Some performance measurement
-    //timeValues.clear();
-    __int64 start_count;
-    __int64 end_count;
-    __int64 freq;
-    QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
 
     //Run the kernel on specific ND range
-    for (int iTest = 0; iTest < 1; iTest++) // Удалить попытки
+    for (int iTest = 0; iTest < 1; iTest++)
     {
-        QueryPerformanceCounter((LARGE_INTEGER*)&start_count);
-
         queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(128)); // запуск ядра 
-        // Попробуй вместо IMAGE_SIZE сделать двухмерный NDRange.
         queue.finish();
-
-        QueryPerformanceCounter((LARGE_INTEGER*)&end_count);
-        double time = 1000 * (double)(end_count - start_count) / (double)freq;
-        //timeValues.push_back(time);
     }
-    //PrintTimeStatistic();
     // Read buffer C into a local list
-    queue.enqueueReadBuffer(VihodnoyMassiv, CL_TRUE, 0, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix);
+    queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), pOutputVector);
+
 }
+
+//
+//    //Create memory buffers
+//    cl::Buffer VhodnoyMassiv = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix); // ОТПРАВЛЯЕМ ЭТО В КЕРНЕЛ
+//    //cl::Buffer clmInputVector2 = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pInputVector2);
+//    cl::Buffer VihodnoyMassiv = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix); // ПОЛУЧАЕМ ЭТО ИЗ МАССИВА
+//
+//    //Build OpenCL program and make the kernel
+//    
+//    std::string kernelCode = "";
+//
+//    std::ifstream fromFile("kernel.cl");
+//    // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
+//    if (fromFile.is_open()) 
+//    {
+//        std::string line;
+//        while (std::getline(fromFile, line)) 
+//        {
+//            kernelCode += line + "\n";
+//        }
+//        fromFile.close();
+//        // используйте переменную kernel для дальнейшей обработки исходного кода OpenCL
+//    }
+//    else 
+//    {
+//        // обработка ошибки открытия файла
+//    }
+//    cl::Program program = cl::Program(context, kernelCode);
+//    cout << "building the kernel... " << endl;
+//    try
+//    {
+//        program.build(contextDevices);
+//    }
+//    catch (cl::Error& err) // отлов ошибкиe с выводом исключения
+//    {
+//        std::cerr
+//            << "OpenCL compilation error" << std::endl
+//            << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(contextDevices[0])
+//            << std::endl;
+//        throw err;
+//    }
+//    cout << "building completed." << endl;
+//
+//    cl::Kernel kernel(program, "TestKernel");
+//
+//    //Set arguments to kernel
+//    int iArg = 0;
+//    kernel.setArg(iArg++, ImagePixelsMatrix);
+//    kernel.setArg(iArg++, ResultImagePixelsMatrix);
+//    //kernel.setArg(iArg++, clmOutputVector);
+//    kernel.setArg(iArg++, IMAGE_SIZE);
+//
+//    //Some performance measurement
+//    //timeValues.clear();
+//    __int64 start_count;
+//    __int64 end_count;
+//    __int64 freq;
+//    QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
+//
+//    //Run the kernel on specific ND range
+//    for (int iTest = 0; iTest < 1; iTest++) // Удалить попытки
+//    {
+//        QueryPerformanceCounter((LARGE_INTEGER*)&start_count);
+//
+//        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(128)); // запуск ядра 
+//        // Попробуй вместо IMAGE_SIZE сделать двухмерный NDRange.
+//        queue.finish();
+//
+//        QueryPerformanceCounter((LARGE_INTEGER*)&end_count);
+//        double time = 1000 * (double)(end_count - start_count) / (double)freq;
+//        //timeValues.push_back(time);
+//    }
+//    //PrintTimeStatistic();
+//    // Read buffer C into a local list
+//    queue.enqueueReadBuffer(VihodnoyMassiv, CL_TRUE, 0, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix);
+//}
