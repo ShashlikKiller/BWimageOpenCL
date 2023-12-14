@@ -301,6 +301,8 @@ int** GetImgPixMatrix(cv::Mat image)
     return _pixMat;
 }
 
+int** ResultImagePixelsMatrix;
+
 void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
 {
     cout << endl << "-------------------------------------------------" << endl;
@@ -310,7 +312,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
 
     const int IMAGE_SIZE = ROWS * COLS;
-    int** pOutputVector; // ON DEVICE (it was int**)
+    //int** pOutputVector; // ON DEVICE (it was int**)
     int*** pInputVector; // ON HOST (it was int**)
     cv::Mat _imgResult(ROWS, COLS, CV_8UC1);
 
@@ -325,7 +327,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     pInputVector = PixMatrix;
 
     //Clean output buffers
-    pOutputVector = new int* [ROWS];
+    int** pOutputVector = new int* [ROWS];
     for (int i = 0; i < ROWS; i++)
     {
         pOutputVector[i] = new int[COLS];
@@ -337,8 +339,10 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     //fill_n(pOutputVector, IMAGE_SIZE * sizeof(int), 0);
 
     //Create memory buffers
+    //Sleep(10000);
     cl::Buffer clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pInputVector);
-    cl::Buffer clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pOutputVector);
+    Sleep(15000);
+    cl::Buffer clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(int), pOutputVector);
 
     //Load OpenCL source code
     std::string kernelCode = "";
