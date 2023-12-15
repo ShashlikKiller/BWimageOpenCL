@@ -49,6 +49,9 @@ cv::Mat GetImgFromPixMatrix(Vec3b** PixMatrix);
 Vec3b** GetImgPixChannelMatrix(cv::Mat image);
 int*** ConvertToInt3(cv::Vec3b** PixMatrix);
 void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix);
+cv::Mat GetGrayImg(int** PixMatrix);
+int* ResultImagePixelsMatrix;
+int** convertTo2D(int* resultImageMatrix, int width, int height);
 
 int main(int argc, char* argv[])
 {
@@ -76,28 +79,23 @@ int main(int argc, char* argv[])
 
     Vec3b** PixMatrix = GetImgPixChannelMatrix(image);
     int*** PixMatrixInt = ConvertToInt3(PixMatrix);
+    //cv::Mat newImage = GetImgFromPixMatrix(PixMatrix);
+    //cv::imshow("cv3", newImage);
+    int rows = image.size[0];
+    int cols = image.size[1];
 
 #pragma region test
-    //for (int i = 0; i < rows; i++)
-//{
-//    for (int j = 0; j < cols; j++)
-//    {
-//        for (int z = 0; z < 3; z++)
-//        {
-//            cout << (PixMatrixInt[i][j][z]) << " ";
-//        }
-//    }
-//}
+   /* for (int i = 0; i < rows; i++)
+{
+    for (int j = 0; j < cols; j++)
+    {
+        for (int z = 0; z<3; z++)
+            cout << (PixMatrixInt[i][j][z]) << " ";
+    }
+}*/
 #pragma endregion
 
-    cv::Mat newImage = GetImgFromPixMatrix(PixMatrix);
 
-    //cv::imshow("cv4", newImage);
-    printf("Second");
-    image = MakeGrayPtrParallel_for(image);
-    //cv::imshow("cv3", image);
-    // Сохранение черно-белого изображения
-    //cv::imwrite("output_image.jpg", image);
     //waitKey();
 
     //Get all available platforms
@@ -125,13 +123,46 @@ int main(int argc, char* argv[])
             //CheckResults();
         }
     }
-
+    int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, cols, rows);
+    cout << _msize(GrayPixMatrix) / sizeof(int*) << endl;
+    //cout << _msize(ResultImagePixelsMatrix[49]) / sizeof(int) << endl;
+    for (int i = 1; i < rows-1; i++)
+    {
+        for (int j = 1; j < cols-1; j++)
+        {
+            cout << GrayPixMatrix[i][j] << " ";
+        }
+    }
+    cv::Mat image_cl = GetGrayImg(GrayPixMatrix);
+    cv::imshow("cv",image_cl);
     // освобождаем ресурсы
     image.cv::Mat::release();
     // удаляем окно
     cv::destroyWindow("cv");
 }
 
+int** convertTo2D(int* resultImageMatrix, int width, int height) 
+{
+    if (_msize(resultImageMatrix) / sizeof(int) != width * height) 
+    {
+        throw std::invalid_argument("The size of the one-dimensional array does not match the specified width and height");
+    }
+
+    int** outputImageMatrix = new int* [height];
+    for (int i = 0; i < height; i++) {
+        outputImageMatrix[i] = new int[width];
+    }
+
+    int index = 0;
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            outputImageMatrix[i][j] = resultImageMatrix[index];
+            index++;
+        }
+    }
+
+    return outputImageMatrix;
+}
 
 // как засечь время:
 //double t0 = (double)getTickCount();
@@ -286,6 +317,21 @@ int*** ConvertToInt3(cv::Vec3b** PixMatrix)
     return _resultMatrix;
 }
 
+cv::Mat GetGrayImg(int** PixMatrix)
+{
+    int _rows = _msize(PixMatrix) / sizeof(int*);
+    int _cols = _msize(PixMatrix[0]) / sizeof(int);
+    cv::Mat _image(_rows, _cols, CV_8UC1);
+    for (int x = 0; x < _rows; x++)
+    {
+        for (int y = 0; y < _cols; y++)
+        {
+            _image.at<uchar>(x, y) = PixMatrix[x][y];
+        }
+    }
+    return _image;
+}
+
 [[Deprecated("Wrong method. Use GetImgPixChannelMatrix instead.")]]
 int** GetImgPixMatrix(cv::Mat image)
 {
@@ -300,8 +346,6 @@ int** GetImgPixMatrix(cv::Mat image)
     }
     return _pixMat;
 }
-
-int** ResultImagePixelsMatrix;
 
 void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
 {
@@ -327,22 +371,21 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     pInputVector = PixMatrix;
 
     //Clean output buffers
-    int** pOutputVector = new int* [ROWS];
-    for (int i = 0; i < ROWS; i++)
+    ResultImagePixelsMatrix = new int[IMAGE_SIZE];
+    for (int i = 0; i < IMAGE_SIZE; i++)
     {
-        pOutputVector[i] = new int[COLS];
-        for (int j = 0; j < COLS; j++)
-        {
-            pOutputVector[i][j] = 0;
-        }
+        ResultImagePixelsMatrix[i] = 0;
     }
     //fill_n(pOutputVector, IMAGE_SIZE * sizeof(int), 0);
 
     //Create memory buffers
-    //Sleep(10000);
-    cl::Buffer clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pInputVector);
-    Sleep(15000);
-    cl::Buffer clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(int), pOutputVector);
+    cl::Buffer clmInputVector;
+    cl::Buffer clmOutputVector;
+    Sleep(1000);
+    clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pInputVector);
+    Sleep(1000);
+    clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(int), ResultImagePixelsMatrix);
+
 
     //Load OpenCL source code
     std::string kernelCode = "";
@@ -378,24 +421,26 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
         throw err;
     }
     cout << "building completed." << endl;
-    cl::Kernel kernel(program, "TestKernel");
+    cl::Kernel kernel(program, "imageProcessing");
 
     //Set arguments to kernel
     int iArg = 0;
     kernel.setArg(iArg++, clmInputVector);
     kernel.setArg(iArg++, clmOutputVector);
-    kernel.setArg(iArg++, IMAGE_SIZE);
+    //kernel.setArg(iArg++, IMAGE_SIZE);
+    kernel.setArg(iArg++, ROWS);
+    kernel.setArg(iArg++, COLS);
     //Some performance measurement
 
     //Run the kernel on specific ND range
     for (int iTest = 0; iTest < 1; iTest++)
     {
-        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(128)); // запуск ядра 
+        //queue.enqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
+        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(50)); // запуск ядра 
         queue.finish();
     }
     // Read buffer C into a local list
-    queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), pOutputVector);
-
+    queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), ResultImagePixelsMatrix);
 }
 
 //
