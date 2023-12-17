@@ -1,1 +1,8 @@
-# BWimageOpenCL
+### Программа для перевода изображения в градации серого
+
+## Стэк используемых технологий:
+
+###### C++ 18.3
+###### OpenCV 4.8
+###### OpenCL 3.0 from CUDA DevKit
+###### Concurrency namespace
