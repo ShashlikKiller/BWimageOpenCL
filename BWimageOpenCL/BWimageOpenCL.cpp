@@ -57,8 +57,13 @@ int ROWS, COLS;
 
 int main(int argc, char* argv[])
 {
-    const char* filename_example = "C:\\Users\\vipef\\Рабочий стол\\2.png";
-    const char* filename = (argc == 2) ? argv[1] : filename_example;
+    std::string path = __FILE__;
+    size_t pos = path.find_last_of('/');
+    // Выделяем подстроку с относительным путем к файлу
+    std::string filename_example = path.substr(0, pos + 1) + "example.jpg";
+
+    // Получаем относительный путь к файлу
+    std::string filename = (argc == 2) ? argv[1] : filename_example;
     // Загрузка изображения
     cv::Mat imageOrigin = cv::imread(filename);
     // Проверка, что изображение загружено успешно
@@ -103,17 +108,17 @@ int main(int argc, char* argv[])
     }
     int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, ROWS, COLS);
 
-    //MakeGrayPtrParallel_for
-    time_start = (double)getTickCount();
-    cv::Mat image_makeGrayPtrParallel_for = MakeGrayPtrParallel_for(image);
-    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
-    std::cout << "Time for MakeGrayPtrParallel_for: " << total_time << " seconds." << std::endl;
-
     //Making an image from CL matrix:
     time_start = (double)getTickCount();
     cv::Mat image_cl = GetGrayImg(GrayPixMatrix);
     total_time = ((double)getTickCount() - time_start) / getTickFrequency();
     std::cout << "Building the image from CL matrix: " << total_time << " seconds." << std::endl;
+
+    //MakeGrayPtrParallel_for
+    time_start = (double)getTickCount();
+    cv::Mat image_makeGrayPtrParallel_for = MakeGrayPtrParallel_for(image);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Time for MakeGrayPtrParallel_for: " << total_time << " seconds." << std::endl;
 
     //MakeGrayPtr
     time_start = (double)getTickCount();
@@ -133,10 +138,13 @@ int main(int argc, char* argv[])
     total_time = ((double)getTickCount() - time_start) / getTickFrequency();
     std::cout << "\n\n\nTime for cvtColor: " << total_time << " seconds." << std::endl;
 
+    waitKey();
+
+    // Показ готовых изображений:
     //cv::imshow("cv_cvtColor", image);
     //cv::imshow("cv_parallelFor", image_cv);
     //cv::imshow("cl_kernel",image_cl);
-    waitKey();
+
     // освобождаем ресурсы
     image.cv::Mat::release();
     imageOrigin.cv::Mat::release();
@@ -146,7 +154,7 @@ int main(int argc, char* argv[])
     image_cl.cv::Mat::release();
     image_makeGrayPtrParallel_for.cv::Mat::release();
     
-    // удаляем окно
+    // Удаление окон с изображениями:
     //cv::destroyWindow("cv_cvtColor");
     //cv::destroyWindow("cv_parallelFor");
     //cv::destroyWindow("cl_kernel");
@@ -366,8 +374,7 @@ int** GetImgPixMatrix(cv::Mat image)
 
 void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
 {
-    cout << endl << "-------------------------------------------------" << endl;
-    cout << "Device: " << device.getInfo<CL_DEVICE_NAME>() << endl << endl;
+    std::cout << "GPU for OpenCL calculations: " << device.getInfo<CL_DEVICE_NAME>() << endl;
 
     //const int ROWS = _msize(PixMatrix) / sizeof(int**);
     //const int COLS = _msize(PixMatrix[0]) / sizeof(int*);

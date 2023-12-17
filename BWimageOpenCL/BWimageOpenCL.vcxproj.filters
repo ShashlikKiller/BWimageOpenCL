@@ -30,4 +30,9 @@
       <Filter>kernel</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\..\..\..\Программы\Картинки\example.jpg">
+      <Filter>Файлы ресурсов</Filter>
+    </Image>
+  </ItemGroup>
 </Project>
