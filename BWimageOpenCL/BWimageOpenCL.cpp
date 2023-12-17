@@ -19,7 +19,6 @@
 #include <CL/cl_layer.h>
 
 //Из прошлой работы:
-#define TESTS_NUMBER = 1
 #include <time.h>
 #include <vector>
 #include <string>
@@ -52,6 +51,8 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix);
 cv::Mat GetGrayImg(int** PixMatrix);
 int* ResultImagePixelsMatrix;
 int** convertTo2D(int* resultImageMatrix, int width, int height);
+double time1;
+double elapsed;
 
 int main(int argc, char* argv[])
 {
@@ -65,38 +66,15 @@ int main(int argc, char* argv[])
         std::cout << "Can't load this image." << std::endl;
         return -1;
     }
-    cv::Mat image, image2;
-    image = imageOrigin.cv::Mat::clone();
-    image2 = imageOrigin.cv::Mat::clone();
+    cv::Mat image = imageOrigin.cv::Mat::clone();
 
     // Далее идет работа с клоном изображения, чтобы с оригинальным ничего не произошло
     // даже если мы явно присвоим изображения через image A = image B, то А будет просто ссылкой на В и при изменении В измениться и А.
 
-
-    // Конвертация изображения в черно-белое
-    //cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
-    //cv::imshow("cv", image);
-
     Vec3b** PixMatrix = GetImgPixChannelMatrix(image);
     int*** PixMatrixInt = ConvertToInt3(PixMatrix);
-    //cv::Mat newImage = GetImgFromPixMatrix(PixMatrix);
-    //cv::imshow("cv3", newImage);
     int rows = image.size[0];
     int cols = image.size[1];
-
-#pragma region test
-   /* for (int i = 0; i < rows; i++)
-{
-    for (int j = 0; j < cols; j++)
-    {
-        for (int z = 0; z<3; z++)
-            cout << (PixMatrixInt[i][j][z]) << " ";
-    }
-}*/
-#pragma endregion
-
-
-    //waitKey();
 
     //Get all available platforms
     vector<cl::Platform> platforms;
@@ -107,8 +85,6 @@ int main(int argc, char* argv[])
         //Get all available devices on selected platform
         std::vector<cl::Device> devices;
         platforms[iPlatform].getDevices(CL_DEVICE_TYPE_ALL, &devices);
-        cout << iPlatform << endl; // закомментить
-
         //Perform test on each device
         for (unsigned int iDevice = 0; iDevice < devices.size(); iDevice++)
         {
@@ -120,69 +96,78 @@ int main(int argc, char* argv[])
             {
                 std::cout << error.what() << "(" << error.err() << ")" << std::endl;
             }
-            //CheckResults();
         }
     }
+
     int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, cols, rows);
-    cout << _msize(GrayPixMatrix) / sizeof(int*) << endl;
-    //cout << _msize(ResultImagePixelsMatrix[49]) / sizeof(int) << endl;
-    //for (int i = 1; i < rows-1; i++)
-    //{
-    //    for (int j = 1; j < cols-1; j++)
-    //    {
-    //        cout << GrayPixMatrix[i][j] << " ";
-    //    }
-    //}
+    
+    time1 = (double)getTickCount();
     cv::Mat image_cv = MakeGrayPtrParallel_for(image);
+    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
+    std::cout << "Затраченное время(MakeGrayPtrParallel_for): " << elapsed << " секунд" << std::endl;
+
+    time1 = (double)getTickCount();
     cv::Mat image_cl = GetGrayImg(GrayPixMatrix);
-    cv::imshow("cv", image_cv);
-    cv::imshow("cl",image_cl);
+    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
+    std::cout << "Затраченное время(GetGrayImg):: " << elapsed << " секунд" << std::endl;
+    // Конвертация изображения в черно-белое
+    time1 = (double)getTickCount();
+    cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
+    std::cout << "Затраченное время(cvtColor): " << elapsed << " секунд" << std::endl;
+    cv::imshow("cv_cvtColor", image);
+    cv::imshow("cv_parallelFor", image_cv);
+    cv::imshow("cl_kernel",image_cl);
     waitKey();
     // освобождаем ресурсы
     image.cv::Mat::release();
+    imageOrigin.cv::Mat::release();
+    image_cl.cv::Mat::release();
+    image_cv.cv::Mat::release();
     // удаляем окно
-    cv::destroyWindow("cv");
+    cv::destroyWindow("cv_cvtColor");
+    cv::destroyWindow("cv_parallelFor");
+    cv::destroyWindow("cl_kernel");
 }
 
 int* convertTo1D(int rows, int cols, int*** pixMatrix)
 {
-    int* arr_1d = new int[rows * cols * 3];
-    int index = 0;
-    for (int i = 0; i < rows; i++) 
+    int* _result1d = new int[rows * cols * 3];
+    int _resultIndex = 0;
+    for (int x = 0; x < rows; x++) 
     {
-        for (int j = 0; j < cols; j++) 
+        for (int y = 0; y < cols; y++) 
         {
-            for (int k = 0; k < 3; k++) 
+            for (int z = 0; z < 3; z++) 
             {
-                arr_1d[index] = pixMatrix[i][j][k];
-                index++;
+                _result1d[_resultIndex] = pixMatrix[x][y][z];
+                _resultIndex++;
             }
         }
     }
-    return arr_1d;
+    return _result1d;
 }
 
 int** convertTo2D(int* resultImageMatrix, int width, int height) 
 {
-    if (_msize(resultImageMatrix) / sizeof(int) != width * height) 
+    if (_msize(resultImageMatrix) / sizeof(int) != (width * height)) 
     {
         throw std::invalid_argument("The size of the one-dimensional array does not match the specified width and height");
     }
 
-    int** outputImageMatrix = new int* [height];
+    int** _outputImageMatrix = new int* [height];
     for (int i = 0; i < height; i++) {
-        outputImageMatrix[i] = new int[width];
+        _outputImageMatrix[i] = new int[width];
     }
 
     int index = 0;
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            outputImageMatrix[i][j] = resultImageMatrix[index];
+            _outputImageMatrix[i][j] = resultImageMatrix[index];
             index++;
         }
     }
-
-    return outputImageMatrix;
+    return _outputImageMatrix;
 }
 
 // как засечь время:
@@ -193,9 +178,6 @@ int** convertTo2D(int* resultImageMatrix, int width, int height)
 
 cv::Mat MakeGrayPtr(cv::Mat image) // Added parralel_for
 {
-    __int64 start_count;
-    __int64 end_count;
-    __int64 freq;
     cv::Mat _img(image.rows, image.cols, CV_8UC1);
     uchar _imgPix;
     for (int x = 0; x < image.rows; x++)
@@ -214,14 +196,14 @@ cv::Mat MakeGrayPtr(cv::Mat image) // Added parralel_for
 cv::Mat MakeGrayPtrParallel_for(cv::Mat imageOrigin)
 {
     cv::Mat imageGray(imageOrigin.rows, imageOrigin.cols, CV_8UC1);
-    parallel_for(size_t(0), size_t(imageOrigin.rows), [&imageOrigin, &imageGray](size_t x) // добавляем image в список захвата        
+    parallel_for(size_t(0), size_t(imageOrigin.rows), [&imageOrigin, &imageGray](size_t x) // добавляем image в список захвата
         {
             uchar _imgPix;
             Vec3b* _imageOriginRow = imageOrigin.ptr<Vec3b>(x);
             uchar* _imgRow = imageGray.ptr<uchar>(x);
             for (int y = 0; y < imageOrigin.cols; y++)
             {
-                _imgPix = GetGrayPix(_imageOriginRow[y][2], _imageOriginRow[y][1], _imageOriginRow[y][0]); // 0.299 * _imageOriginRow[y][2] + 0.587 * _imageOriginRow[y][1] + 0.114 * _imageOriginRow[y][0];
+                _imgPix = GetGrayPix(_imageOriginRow[y][2], _imageOriginRow[y][1], _imageOriginRow[y][0]);
                 _imgRow[y] = _imgPix;
             }
         });
@@ -274,7 +256,7 @@ cv::Mat MakeGrayByPixel(cv::Mat image)
         for (int y = 0; y < _columns; y++)
         {
             cv::Vec3b pix = image.at<cv::Vec3b>(x, y);
-            float gray = GetGrayPix(pix[0], pix[1], pix[2]); //0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
+            float gray = GetGrayPix(pix[0], pix[1], pix[2]);
             _imageResult.at<uchar>(x, y) = uchar(gray);
         }
     }
@@ -373,7 +355,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
 
     const int IMAGE_SIZE = ROWS * COLS;
-    int* pInputVector; // ON HOST (it was int**)
+    int* pInputVector; // ON HOST
 
     //For the selected device create a context
     vector<cl::Device> contextDevices;
@@ -404,7 +386,6 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
 
     //Load OpenCL source code
     std::string kernelCode = "";
-
     std::ifstream fromFile("kernel.cl");
     // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
     if (fromFile.is_open())
@@ -419,7 +400,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     }
     else
     {
-        // обработка ошибки открытия файла
+        std::printf("Error: file with kernel can't be opened.\n");
     }
     cl::Program program = cl::Program(context, kernelCode);
     cout << "building the kernel... " << endl;
@@ -438,6 +419,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     cout << "building completed." << endl;
     cl::Kernel kernel(program, "imageProcessing");
 
+    time1 = (double)getTickCount();
     //Set arguments to kernel
     int iArg = 0;
     kernel.setArg(iArg++, clmInputVector);
@@ -450,9 +432,12 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     //Run the kernel on specific ND range
     for (int iTest = 0; iTest < 1; iTest++)
     {
-        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(50)); // запуск ядра 
+        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(50)); // запуск ядра 50()
         queue.finish();
     }
     // Read buffer C into a local list
     queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), ResultImagePixelsMatrix);
+
+    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
+    std::cout << "Затраченное время(cl_kernel): " << elapsed << " секунд" << std::endl;
 }
