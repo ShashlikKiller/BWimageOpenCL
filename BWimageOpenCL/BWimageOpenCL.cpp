@@ -126,19 +126,40 @@ int main(int argc, char* argv[])
     int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, cols, rows);
     cout << _msize(GrayPixMatrix) / sizeof(int*) << endl;
     //cout << _msize(ResultImagePixelsMatrix[49]) / sizeof(int) << endl;
-    for (int i = 1; i < rows-1; i++)
-    {
-        for (int j = 1; j < cols-1; j++)
-        {
-            cout << GrayPixMatrix[i][j] << " ";
-        }
-    }
+    //for (int i = 1; i < rows-1; i++)
+    //{
+    //    for (int j = 1; j < cols-1; j++)
+    //    {
+    //        cout << GrayPixMatrix[i][j] << " ";
+    //    }
+    //}
+    cv::Mat image_cv = MakeGrayPtrParallel_for(image);
     cv::Mat image_cl = GetGrayImg(GrayPixMatrix);
-    cv::imshow("cv",image_cl);
+    cv::imshow("cv", image_cv);
+    cv::imshow("cl",image_cl);
+    waitKey();
     // освобождаем ресурсы
     image.cv::Mat::release();
     // удаляем окно
     cv::destroyWindow("cv");
+}
+
+int* convertTo1D(int rows, int cols, int*** pixMatrix)
+{
+    int* arr_1d = new int[rows * cols * 3];
+    int index = 0;
+    for (int i = 0; i < rows; i++) 
+    {
+        for (int j = 0; j < cols; j++) 
+        {
+            for (int k = 0; k < 3; k++) 
+            {
+                arr_1d[index] = pixMatrix[i][j][k];
+                index++;
+            }
+        }
+    }
+    return arr_1d;
 }
 
 int** convertTo2D(int* resultImageMatrix, int width, int height) 
@@ -224,7 +245,6 @@ cv::Mat MakeGrayIGuess(cv::Mat image)
     cv::Mat _image;
     double _minRange, _MaxRange;
     cv::Point _mLoc, _MLoc;
-    //cv::minMaxLoc(image, &_minRange, &_MaxRange, &_mLoc, &_MLoc); ORIGINAL в  чем ошибка хз
     try
     {
         cv::minMaxLoc(image, &_minRange, &_MaxRange, &_mLoc, &_MLoc);
@@ -306,12 +326,9 @@ int*** ConvertToInt3(cv::Vec3b** PixMatrix)
         {
             _resultMatrix[x][y] = new int[3];
             cv::Vec3b _vec3bVal = PixMatrix[x][y];
-            int b = _vec3bVal[0];
-            int g = _vec3bVal[1];
-            int r = _vec3bVal[2];
-            _resultMatrix[x][y][0] = b;
-            _resultMatrix[x][y][1] = g;
-            _resultMatrix[x][y][2] = r;
+            _resultMatrix[x][y][0] = _vec3bVal[0];
+            _resultMatrix[x][y][1] = _vec3bVal[1];
+            _resultMatrix[x][y][2] = _vec3bVal[2];
         }
     }
     return _resultMatrix;
@@ -356,9 +373,7 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
 
     const int IMAGE_SIZE = ROWS * COLS;
-    //int** pOutputVector; // ON DEVICE (it was int**)
-    int*** pInputVector; // ON HOST (it was int**)
-    cv::Mat _imgResult(ROWS, COLS, CV_8UC1);
+    int* pInputVector; // ON HOST (it was int**)
 
     //For the selected device create a context
     vector<cl::Device> contextDevices;
@@ -368,13 +383,13 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     // Создаем очередь для девайса
     cl::CommandQueue queue(context, device);
 
-    pInputVector = PixMatrix;
+    pInputVector = convertTo1D(ROWS, COLS, PixMatrix);
 
     //Clean output buffers
     ResultImagePixelsMatrix = new int[IMAGE_SIZE];
     for (int i = 0; i < IMAGE_SIZE; i++)
     {
-        ResultImagePixelsMatrix[i] = 0;
+        ResultImagePixelsMatrix[i] = 1;
     }
     //fill_n(pOutputVector, IMAGE_SIZE * sizeof(int), 0);
 
@@ -435,86 +450,9 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     //Run the kernel on specific ND range
     for (int iTest = 0; iTest < 1; iTest++)
     {
-        //queue.enqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
         queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(50)); // запуск ядра 
         queue.finish();
     }
     // Read buffer C into a local list
     queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), ResultImagePixelsMatrix);
 }
-
-//
-//    //Create memory buffers
-//    cl::Buffer VhodnoyMassiv = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ImagePixelsMatrix); // ОТПРАВЛЯЕМ ЭТО В КЕРНЕЛ
-//    //cl::Buffer clmInputVector2 = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, DATA_SIZE * sizeof(float), pInputVector2);
-//    cl::Buffer VihodnoyMassiv = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix); // ПОЛУЧАЕМ ЭТО ИЗ МАССИВА
-//
-//    //Build OpenCL program and make the kernel
-//    
-//    std::string kernelCode = "";
-//
-//    std::ifstream fromFile("kernel.cl");
-//    // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
-//    if (fromFile.is_open()) 
-//    {
-//        std::string line;
-//        while (std::getline(fromFile, line)) 
-//        {
-//            kernelCode += line + "\n";
-//        }
-//        fromFile.close();
-//        // используйте переменную kernel для дальнейшей обработки исходного кода OpenCL
-//    }
-//    else 
-//    {
-//        // обработка ошибки открытия файла
-//    }
-//    cl::Program program = cl::Program(context, kernelCode);
-//    cout << "building the kernel... " << endl;
-//    try
-//    {
-//        program.build(contextDevices);
-//    }
-//    catch (cl::Error& err) // отлов ошибкиe с выводом исключения
-//    {
-//        std::cerr
-//            << "OpenCL compilation error" << std::endl
-//            << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(contextDevices[0])
-//            << std::endl;
-//        throw err;
-//    }
-//    cout << "building completed." << endl;
-//
-//    cl::Kernel kernel(program, "TestKernel");
-//
-//    //Set arguments to kernel
-//    int iArg = 0;
-//    kernel.setArg(iArg++, ImagePixelsMatrix);
-//    kernel.setArg(iArg++, ResultImagePixelsMatrix);
-//    //kernel.setArg(iArg++, clmOutputVector);
-//    kernel.setArg(iArg++, IMAGE_SIZE);
-//
-//    //Some performance measurement
-//    //timeValues.clear();
-//    __int64 start_count;
-//    __int64 end_count;
-//    __int64 freq;
-//    QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
-//
-//    //Run the kernel on specific ND range
-//    for (int iTest = 0; iTest < 1; iTest++) // Удалить попытки
-//    {
-//        QueryPerformanceCounter((LARGE_INTEGER*)&start_count);
-//
-//        queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NDRange(128)); // запуск ядра 
-//        // Попробуй вместо IMAGE_SIZE сделать двухмерный NDRange.
-//        queue.finish();
-//
-//        QueryPerformanceCounter((LARGE_INTEGER*)&end_count);
-//        double time = 1000 * (double)(end_count - start_count) / (double)freq;
-//        //timeValues.push_back(time);
-//    }
-//    //PrintTimeStatistic();
-//    // Read buffer C into a local list
-//    queue.enqueueReadBuffer(VihodnoyMassiv, CL_TRUE, 0, IMAGE_SIZE * sizeof(__int32), ResultImagePixelsMatrix);
-//}
