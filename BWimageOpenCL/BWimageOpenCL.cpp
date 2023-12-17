@@ -51,8 +51,9 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix);
 cv::Mat GetGrayImg(int** PixMatrix);
 int* ResultImagePixelsMatrix;
 int** convertTo2D(int* resultImageMatrix, int width, int height);
-double time1;
-double elapsed;
+double time_start, total_time;
+
+int ROWS, COLS;
 
 int main(int argc, char* argv[])
 {
@@ -67,14 +68,16 @@ int main(int argc, char* argv[])
         return -1;
     }
     cv::Mat image = imageOrigin.cv::Mat::clone();
+    cv::Mat image_cvtColor;
+
 
     // Далее идет работа с клоном изображения, чтобы с оригинальным ничего не произошло
     // даже если мы явно присвоим изображения через image A = image B, то А будет просто ссылкой на В и при изменении В измениться и А.
 
     Vec3b** PixMatrix = GetImgPixChannelMatrix(image);
     int*** PixMatrixInt = ConvertToInt3(PixMatrix);
-    int rows = image.size[0];
-    int cols = image.size[1];
+    ROWS = image.size[0];
+    COLS = image.size[1];
 
     //Get all available platforms
     vector<cl::Platform> platforms;
@@ -98,36 +101,55 @@ int main(int argc, char* argv[])
             }
         }
     }
+    int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, ROWS, COLS);
 
-    int** GrayPixMatrix = convertTo2D(ResultImagePixelsMatrix, cols, rows);
-    
-    time1 = (double)getTickCount();
-    cv::Mat image_cv = MakeGrayPtrParallel_for(image);
-    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
-    std::cout << "Затраченное время(MakeGrayPtrParallel_for): " << elapsed << " секунд" << std::endl;
+    //MakeGrayPtrParallel_for
+    time_start = (double)getTickCount();
+    cv::Mat image_makeGrayPtrParallel_for = MakeGrayPtrParallel_for(image);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Time for MakeGrayPtrParallel_for: " << total_time << " seconds." << std::endl;
 
-    time1 = (double)getTickCount();
+    //Making an image from CL matrix:
+    time_start = (double)getTickCount();
     cv::Mat image_cl = GetGrayImg(GrayPixMatrix);
-    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
-    std::cout << "Затраченное время(GetGrayImg):: " << elapsed << " секунд" << std::endl;
-    // Конвертация изображения в черно-белое
-    time1 = (double)getTickCount();
-    cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
-    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
-    std::cout << "Затраченное время(cvtColor): " << elapsed << " секунд" << std::endl;
-    cv::imshow("cv_cvtColor", image);
-    cv::imshow("cv_parallelFor", image_cv);
-    cv::imshow("cl_kernel",image_cl);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Building the image from CL matrix: " << total_time << " seconds." << std::endl;
+
+    //MakeGrayPtr
+    time_start = (double)getTickCount();
+    cv::Mat image_makeGrayPtr = MakeGrayPtr(image);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Time for MakeGrayPtr: " << total_time << " seconds." << std::endl;
+
+    //MakeGrayByPixel
+    time_start = (double)getTickCount();
+    cv::Mat image_makeGrayByPixel = MakeGrayByPixel(image);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Time for MakeGrayByPixel: " << total_time << " seconds." << std::endl;
+
+    //cv::cvtColor
+    time_start = (double)getTickCount();
+    cv::cvtColor(image, image_cvtColor, cv::COLOR_BGR2GRAY);
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "\n\n\nTime for cvtColor: " << total_time << " seconds." << std::endl;
+
+    //cv::imshow("cv_cvtColor", image);
+    //cv::imshow("cv_parallelFor", image_cv);
+    //cv::imshow("cl_kernel",image_cl);
     waitKey();
     // освобождаем ресурсы
     image.cv::Mat::release();
     imageOrigin.cv::Mat::release();
+    image_makeGrayByPixel.cv::Mat::release();
+    image_cvtColor.cv::Mat::release();
+    image_makeGrayPtr.cv::Mat::release();
     image_cl.cv::Mat::release();
-    image_cv.cv::Mat::release();
+    image_makeGrayPtrParallel_for.cv::Mat::release();
+    
     // удаляем окно
-    cv::destroyWindow("cv_cvtColor");
-    cv::destroyWindow("cv_parallelFor");
-    cv::destroyWindow("cl_kernel");
+    //cv::destroyWindow("cv_cvtColor");
+    //cv::destroyWindow("cv_parallelFor");
+    //cv::destroyWindow("cl_kernel");
 }
 
 int* convertTo1D(int rows, int cols, int*** pixMatrix)
@@ -156,13 +178,15 @@ int** convertTo2D(int* resultImageMatrix, int width, int height)
     }
 
     int** _outputImageMatrix = new int* [height];
-    for (int i = 0; i < height; i++) {
+    for (int i = 0; i < height; i++) 
+    {
         _outputImageMatrix[i] = new int[width];
     }
-
     int index = 0;
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
+    for (int i = 0; i < height; i++) 
+    {
+        for (int j = 0; j < width; j++) 
+        {
             _outputImageMatrix[i][j] = resultImageMatrix[index];
             index++;
         }
@@ -170,13 +194,7 @@ int** convertTo2D(int* resultImageMatrix, int width, int height)
     return _outputImageMatrix;
 }
 
-// как засечь время:
-//double t0 = (double)getTickCount();
-// здесь находится ваш код ...
-//elapsed = ((double)getTickCount() – t0) / getTickFrequency();
-//
-
-cv::Mat MakeGrayPtr(cv::Mat image) // Added parralel_for
+cv::Mat MakeGrayPtr(cv::Mat image)
 {
     cv::Mat _img(image.rows, image.cols, CV_8UC1);
     uchar _imgPix;
@@ -193,15 +211,15 @@ cv::Mat MakeGrayPtr(cv::Mat image) // Added parralel_for
     return _img;
 }
 
-cv::Mat MakeGrayPtrParallel_for(cv::Mat imageOrigin)
+cv::Mat MakeGrayPtrParallel_for(cv::Mat image)
 {
-    cv::Mat imageGray(imageOrigin.rows, imageOrigin.cols, CV_8UC1);
-    parallel_for(size_t(0), size_t(imageOrigin.rows), [&imageOrigin, &imageGray](size_t x) // добавляем image в список захвата
+    cv::Mat imageGray(image.rows, image.cols, CV_8UC1);
+    parallel_for(size_t(0), size_t(image.rows), [&image, &imageGray](size_t x) // добавляем image в список захвата
         {
             uchar _imgPix;
-            Vec3b* _imageOriginRow = imageOrigin.ptr<Vec3b>(x);
+            Vec3b* _imageOriginRow = image.ptr<Vec3b>(x);
             uchar* _imgRow = imageGray.ptr<uchar>(x);
-            for (int y = 0; y < imageOrigin.cols; y++)
+            for (int y = 0; y < image.cols; y++)
             {
                 _imgPix = GetGrayPix(_imageOriginRow[y][2], _imageOriginRow[y][1], _imageOriginRow[y][0]);
                 _imgRow[y] = _imgPix;
@@ -351,8 +369,8 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     cout << endl << "-------------------------------------------------" << endl;
     cout << "Device: " << device.getInfo<CL_DEVICE_NAME>() << endl << endl;
 
-    const int ROWS = _msize(PixMatrix) / sizeof(int**);
-    const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
+    //const int ROWS = _msize(PixMatrix) / sizeof(int**);
+    //const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
 
     const int IMAGE_SIZE = ROWS * COLS;
     int* pInputVector; // ON HOST
@@ -396,7 +414,6 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
             kernelCode += line + "\n";
         }
         fromFile.close();
-        // используйте переменную kernel для дальнейшей обработки исходного кода OpenCL
     }
     else
     {
@@ -416,10 +433,10 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
             << std::endl;
         throw err;
     }
-    cout << "building completed." << endl;
+    std::cout << "building completed." << endl;
     cl::Kernel kernel(program, "imageProcessing");
 
-    time1 = (double)getTickCount();
+    time_start = (double)getTickCount();
     //Set arguments to kernel
     int iArg = 0;
     kernel.setArg(iArg++, clmInputVector);
@@ -427,7 +444,6 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     //kernel.setArg(iArg++, IMAGE_SIZE);
     kernel.setArg(iArg++, ROWS);
     kernel.setArg(iArg++, COLS);
-    //Some performance measurement
 
     //Run the kernel on specific ND range
     for (int iTest = 0; iTest < 1; iTest++)
@@ -438,6 +454,6 @@ void PerformTestOnDeviceNew(cl::Device device, int*** PixMatrix)
     // Read buffer C into a local list
     queue.enqueueReadBuffer(clmOutputVector, CL_TRUE, 0, IMAGE_SIZE * sizeof(int), ResultImagePixelsMatrix);
 
-    elapsed = ((double)getTickCount() - time1) / getTickFrequency();
-    std::cout << "Затраченное время(cl_kernel): " << elapsed << " секунд" << std::endl;
+    total_time = ((double)getTickCount() - time_start) / getTickFrequency();
+    std::cout << "Time for kernel imageProcessing: " << total_time << " seconds." << std::endl;
 }
