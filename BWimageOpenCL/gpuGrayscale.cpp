@@ -3,7 +3,7 @@
 int* GrayscaledImage;
 double start, elapsed;
 
-void GrayscaleKernel(int*** pixMatrix)
+void grayscaleOnKernel(int*** pixMatrix)
 {
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -17,7 +17,7 @@ void GrayscaleKernel(int*** pixMatrix)
         {
             try
             {
-                return KernelExecution(devices[iDevice], pixMatrix);
+                return grayscaleKernelExecution(devices[iDevice], pixMatrix);
             }
             catch (cl::Error error)
             {
@@ -27,15 +27,15 @@ void GrayscaleKernel(int*** pixMatrix)
     }
 }
 
-void KernelExecution(cl::Device device, int*** PixMatrix)
+void grayscaleKernelExecution(cl::Device device, int*** PixMatrix)
 {
-    std::cout << "Device: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+    std::cout << "Device for OpenCL calculations: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
     const int ROWS = _msize(PixMatrix) / sizeof(int**);
     const int COLS = _msize(PixMatrix[0]) / sizeof(int*);
 
     const int IMAGE_SIZE = ROWS * COLS;
-    int* pInputVector;
+    int* imageChannelMatrix;
 
     //For the selected device create a context
     std::vector<cl::Device> contextDevices;
@@ -45,7 +45,7 @@ void KernelExecution(cl::Device device, int*** PixMatrix)
     // Создаем очередь для девайса
     cl::CommandQueue queue(context, device);
 
-    pInputVector = convertTo1D(ROWS, COLS, PixMatrix);
+    imageChannelMatrix = convertTo1D(ROWS, COLS, PixMatrix);
 
     //Clean output buffers
     GrayscaledImage = new int[IMAGE_SIZE];
@@ -59,16 +59,13 @@ void KernelExecution(cl::Device device, int*** PixMatrix)
     cl::Buffer clmInputVector;
     cl::Buffer clmOutputVector;
     Sleep(1000);
-    clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), pInputVector);
+    clmInputVector = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * 3 * sizeof(int), imageChannelMatrix);
     Sleep(1000);
     clmOutputVector = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, IMAGE_SIZE * sizeof(int), GrayscaledImage);
 
-
     //Load OpenCL source code
     std::string kernelCode = "";
-
-    std::ifstream fromFile("kernel.cl");
-    // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
+    std::ifstream fromFile("kernel.cl");  // Это аналог этого кода - cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
     if (fromFile.is_open())
     {
         std::string line;
@@ -77,11 +74,10 @@ void KernelExecution(cl::Device device, int*** PixMatrix)
             kernelCode += line + "\n";
         }
         fromFile.close();
-        // используйте переменную kernel для дальнейшей обработки исходного кода OpenCL
     }
     else
     {
-        // обработка ошибки открытия файла
+        std::cout << "Error: can't open file with kernel's code.\n";
     }
     cl::Program program = cl::Program(context, kernelCode);
     std::cout << "building the kernel... \n";
@@ -115,12 +111,12 @@ void KernelExecution(cl::Device device, int*** PixMatrix)
     elapsed = ((double)getTickCount() - start) / getTickFrequency();
 }
 
-int* GetGrayscaledImage()
+int* getGrayscaledImageFromDevice()
 {
     return GrayscaledImage;
 }
 
-double GetElapsed()
+double getDeviceElapsed()
 {
     return elapsed;
 }

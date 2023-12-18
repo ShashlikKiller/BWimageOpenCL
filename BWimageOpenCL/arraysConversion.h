@@ -18,6 +18,6 @@ using namespace std;
 int* convertTo1D(int rows, int cols, int*** pixMatrix);
 int** convertTo2D(int* resultImageMatrix, int width, int height);
 int*** convertTo3D(cv::Vec3b** PixMatrix);
-cv::Mat GetGrayscaledImage(int** PixMatrix);
-cv::Vec3b** GetImgPixChannelMatrix(cv::Mat image);
+cv::Mat getGrayscaledImage(int** PixMatrix);
+cv::Vec3b** pixelChannelsMatrix(cv::Mat image);
 

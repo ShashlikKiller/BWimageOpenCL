@@ -64,7 +64,7 @@ int*** convertTo3D(cv::Vec3b** PixMatrix)
     return _resultMatrix;
 }
 
-cv::Mat GetGrayscaledImage(int** PixMatrix)
+cv::Mat getGrayscaledImage(int** PixMatrix)
 {
     int _rows = _msize(PixMatrix) / sizeof(int*);
     int _cols = _msize(PixMatrix[0]) / sizeof(int);
@@ -79,7 +79,7 @@ cv::Mat GetGrayscaledImage(int** PixMatrix)
     return _image;
 }
 
-cv::Vec3b** GetImgPixChannelMatrix(cv::Mat image)
+cv::Vec3b** pixelChannelsMatrix(cv::Mat image)
 {
     cv::Vec3b** _pixMat = new cv::Vec3b * [image.rows];
     for (int x = 0; x < image.rows; x++)

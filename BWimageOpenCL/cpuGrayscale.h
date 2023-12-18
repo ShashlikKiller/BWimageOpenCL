@@ -6,8 +6,8 @@
 #include <ppl.h>
 
 
-cv::Mat MakeGrayPtr(cv::Mat image);
-cv::Mat MakeGrayPtrParallel_for(cv::Mat image);
-cv::Mat MakeGrayByPixel(cv::Mat image);
-float GetGrayPix(int R, int G, int B);
+cv::Mat getGrayPtr(cv::Mat image);
+cv::Mat getGrayPtrParallel_for(cv::Mat image);
+cv::Mat getGrayByEveryPixel(cv::Mat image);
+float getGrayscaledPixel(int R, int G, int B);
 

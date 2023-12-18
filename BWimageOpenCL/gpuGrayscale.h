@@ -19,7 +19,7 @@
 using namespace cv;
 using namespace std;
 
-void GrayscaleKernel(int*** pixMatrix);
-void KernelExecution(cl::Device device, int*** PixMatrix);
-int* GetGrayscaledImage();
-double GetElapsed();
+void grayscaleOnKernel(int*** pixMatrix);
+void grayscaleKernelExecution(cl::Device device, int*** PixMatrix);
+int* getGrayscaledImageFromDevice();
+double getDeviceElapsed();

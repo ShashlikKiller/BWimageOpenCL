@@ -1,6 +1,6 @@
 #include "cpuGrayscale.h"
 
-cv::Mat MakeGrayPtr(cv::Mat image)
+cv::Mat getGrayPtr(cv::Mat image)
 {
     cv::Mat _img(image.rows, image.cols, CV_8UC1);
     uchar _imgPix;
@@ -10,14 +10,14 @@ cv::Mat MakeGrayPtr(cv::Mat image)
         uchar* _imgRow = _img.ptr<uchar>(x);
         for (int y = 0; y < image.cols; y++)
         {
-            _imgPix = GetGrayPix(imageRow[y][2], imageRow[y][1], imageRow[y][0]); 
+            _imgPix = getGrayscaledPixel(imageRow[y][2], imageRow[y][1], imageRow[y][0]); 
             _imgRow[y] = _imgPix;
         }
     }
     return _img;
 }
 
-cv::Mat MakeGrayPtrParallel_for(cv::Mat image)
+cv::Mat getGrayPtrParallel_for(cv::Mat image)
 {
     cv::Mat imageGray(image.rows, image.cols, CV_8UC1);
     Concurrency::parallel_for(size_t(0), size_t(image.rows), [&image, &imageGray](size_t x)
@@ -27,22 +27,11 @@ cv::Mat MakeGrayPtrParallel_for(cv::Mat image)
             uchar* _imgRow = imageGray.ptr<uchar>(x);
             for (int y = 0; y < image.cols; y++)
             {
-                _imgPix = GetGrayPix(_imageOriginRow[y][2], _imageOriginRow[y][1], _imageOriginRow[y][0]);
+                _imgPix = getGrayscaledPixel(_imageOriginRow[y][2], _imageOriginRow[y][1], _imageOriginRow[y][0]);
                 _imgRow[y] = _imgPix;
             }
         });
     return imageGray;
-}
-
-void imgInfo(cv::Mat image)
-{
-    printf("[i] channels:  %d\n", image.channels());
-    printf("[i] pixel depth: %d bits\n", image.depth());
-    cv::MatSize imgsize = image.size;
-    int rows = imgsize[0]; // Кол-во пикселей по вертикали
-    int columns = imgsize[1]; // По вертикали
-    printf("[i] rows:  %d\n", rows);
-    printf("[i] columns:  %d\n", columns);
 }
 
 [[Deprecated("This isn't working. Method from docs")]]
@@ -59,12 +48,12 @@ cv::Mat pixelNormalization(cv::Mat image)
     }
     catch (cv::Exception cvExp)
     {
-        std::printf("Exception: %d", cvExp);
+        std::cout << "Exception: " << cvExp.what() << " (" << cvExp.err << ")\n";
     }
     return image;
 }
 
-cv::Mat MakeGrayByPixel(cv::Mat image)
+cv::Mat getGrayByEveryPixel(cv::Mat image)
 {
     int _rows = image.size[0]; // Кол-во пикселей по вертикали
     int _columns = image.size[1]; // По вертикали
@@ -74,14 +63,14 @@ cv::Mat MakeGrayByPixel(cv::Mat image)
         for (int y = 0; y < _columns; y++)
         {
             cv::Vec3b pix = image.at<cv::Vec3b>(x, y);
-            float gray = GetGrayPix(pix[0], pix[1], pix[2]);
+            float gray = getGrayscaledPixel(pix[0], pix[1], pix[2]);
             _imageResult.at<uchar>(x, y) = uchar(gray);
         }
     }
     return _imageResult;
 }
 
-float GetGrayPix(int R, int G, int B)
+float getGrayscaledPixel(int R, int G, int B)
 {
     return 0.299 * R + 0.587 * G + 0.114 * B;
 }

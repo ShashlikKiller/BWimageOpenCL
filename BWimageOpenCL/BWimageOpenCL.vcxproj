@@ -24,6 +24,7 @@
     <ProjectGuid>{1d8b5b3c-ec5b-46ce-ad30-a8dd9fbd8aa1}</ProjectGuid>
     <RootNamespace>BWimageOpenCL</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>GrayscaleTranslationOpenCL</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -136,7 +137,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="arraysConversion.cpp" />
-    <ClCompile Include="BWimageOpenCL.cpp" />
+    <ClCompile Include="mainProgram.cpp" />
     <ClCompile Include="cpuGrayscale.cpp" />
     <ClCompile Include="gpuGrayscale.cpp" />
   </ItemGroup>
