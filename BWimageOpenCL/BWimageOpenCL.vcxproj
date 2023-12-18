@@ -135,14 +135,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="arraysConversion.cpp" />
     <ClCompile Include="BWimageOpenCL.cpp" />
-    <ClCompile Include="Source.cpp" />
+    <ClCompile Include="cpuGrayscale.cpp" />
+    <ClCompile Include="gpuGrayscale.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="kernel.cl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\..\..\..\Программы\Картинки\example.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="arraysConversion.h" />
+    <ClInclude Include="cpuGrayscale.h" />
+    <ClInclude Include="gpuGrayscale.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
